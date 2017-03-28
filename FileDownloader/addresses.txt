@@ -1,4 +1,1 @@
-﻿https://download.sysinternals.com/files/SysinternalsSuite.zip
-http://www.kcsoftwares.com/files/sumo_lite.exe
-http://www.kcsoftwares.com/files/dumo_lite.exe
-http://www.kcsoftwares.com/files/hdde_lite.exe
+﻿
