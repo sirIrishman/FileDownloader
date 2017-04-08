@@ -98,12 +98,18 @@ namespace FileDownloader {
     }
 
     sealed class DownloadingFileState {
+        [JsonRequired]
         public Uri Url { get; set; }
+
         public string MD5Hash { get; set; }
+
         public string Length { get; set; }
+
         public string LastModified { get; set; }
+
         [JsonIgnore]
         public string DownloadPath { get; set; }
+
         [JsonIgnore]
         public bool IsNewVersionAvailable { get; set; }
 
