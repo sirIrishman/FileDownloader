@@ -51,7 +51,7 @@ namespace FileDownloader {
             var headersRequest = WebRequest.CreateDefault(prevState.Url);
             headersRequest.Method = WebRequestMethods.Http.Head;
             using(WebResponse headersResponse = headersRequest.GetResponse()) {
-                var currentState = DownloadingFileState.CreateFromWebResponse(headersResponse);
+                var currentState = DownloadingFileState.CreateFromWebResponse(headersRequest.RequestUri, headersResponse);
                 currentState.IsNewVersionAvailable = currentState != prevState;
                 return currentState;
             }
@@ -154,9 +154,9 @@ namespace FileDownloader {
             File.WriteAllText(stateFileName, json);
         }
 
-        public static DownloadingFileState CreateFromWebResponse (WebResponse webResponse) {
+        public static DownloadingFileState CreateFromWebResponse (Uri requestUrl, WebResponse webResponse) {
             return new DownloadingFileState {
-                Url = webResponse.ResponseUri,
+                Url = requestUrl,
                 MD5Hash = webResponse.Headers["Content-Md5"],
                 Length = webResponse.Headers["Content-Length"],
                 LastModified = webResponse.Headers["Last-Modified"]
