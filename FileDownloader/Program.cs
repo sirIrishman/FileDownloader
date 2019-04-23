@@ -150,7 +150,7 @@ namespace FileDownloader {
         }
 
         public static void WriteStatesByUrlToFile (string stateFileName, IDictionary<Uri, DownloadingFileState> states) {
-            string json = JsonConvert.SerializeObject(states);
+            string json = JsonConvert.SerializeObject(states, new JsonSerializerSettings { Formatting = Formatting.Indented });
             File.WriteAllText(stateFileName, json);
         }
 
