@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.IO.Compression;
 using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
@@ -45,7 +44,7 @@ namespace FileDownloader {
         }
 
         static DownloadFileState RetrieveCurrentState (DownloadFileState prevState) {
-            _logger.Info($"[{System.IO.Path.GetFileName(prevState.Url.LocalPath)}] Checking updates...");
+            _logger.Info($"[{Path.GetFileName(prevState.Url.LocalPath)}] Checking updates...");
             var headersRequest = WebRequest.CreateDefault(prevState.Url);
             headersRequest.Method = WebRequestMethods.Http.Head;
             using(WebResponse headersResponse = headersRequest.GetResponse()) {
@@ -57,7 +56,7 @@ namespace FileDownloader {
 
         static DownloadFileTask DownloadIfAvailable (DownloadFileTask task) {
             if(task.DownloadState.IsNewVersionAvailable) {
-                _logger.Info($"[{System.IO.Path.GetFileName(task.DownloadState.Url.LocalPath)}] Update found. Downloading...");
+                _logger.Info($"[{Path.GetFileName(task.DownloadState.Url.LocalPath)}] Update found. Downloading...");
                 var downloadRequest = WebRequest.CreateDefault(task.DownloadState.Url);
                 downloadRequest.Method = WebRequestMethods.Http.Get;
                 using(WebResponse downloadResponse = downloadRequest.GetResponse()) {
@@ -81,18 +80,18 @@ namespace FileDownloader {
                         fileStream.Flush();
                     }
                 }
-                _logger.Info($"[{System.IO.Path.GetFileName(task.DownloadState.Url.LocalPath)}] File downloaded.");
+                _logger.Info($"[{Path.GetFileName(task.DownloadState.Url.LocalPath)}] File downloaded.");
             } else {
-                _logger.Info($"[{System.IO.Path.GetFileName(task.DownloadState.Url.LocalPath)}] No updates.");
+                _logger.Info($"[{Path.GetFileName(task.DownloadState.Url.LocalPath)}] No updates.");
             }
             return task;
         }
 
         private static DownloadFileTask ExecuteFileActionIfAvailable (DownloadFileTask task) {
-            if(task.DownloadState.IsNewVersionAvailable && task.DownloadedFileAction != null) {
-                _logger.Info($"[{System.IO.Path.GetFileName(task.DownloadState.Url.LocalPath)}] Action found ({task.DownloadedFileAction.Type}). Triggering...");
-                task.DownloadedFileAction.Trigger(task.DownloadState.DownloadPath);
-                _logger.Info($"[{System.IO.Path.GetFileName(task.DownloadState.Url.LocalPath)}] Action finished.");
+            if(task.DownloadState.IsNewVersionAvailable && task.PostdownloadAction != null) {
+                _logger.Info($"[{Path.GetFileName(task.DownloadState.Url.LocalPath)}] Action found. Triggering...");
+                task.PostdownloadAction.Trigger(task.DownloadState.DownloadPath);
+                _logger.Info($"[{Path.GetFileName(task.DownloadState.Url.LocalPath)}] Action finished.");
             }
             return task;
         }
@@ -109,7 +108,7 @@ namespace FileDownloader {
         public Uri Url { get; set; }
 
         [JsonProperty("action")]
-        public DownloadedFileAction DownloadedFileAction { get; set; }
+        public FileAction PostdownloadAction { get; set; }
 
         [JsonIgnore]
         public DownloadFileState DownloadState { get; set; }
@@ -118,14 +117,14 @@ namespace FileDownloader {
             var another = obj as DownloadFileTask;
             return !object.ReferenceEquals(another, null)
                 && this.Url == another.Url
-                && this.DownloadedFileAction == another.DownloadedFileAction;
+                && this.PostdownloadAction == another.PostdownloadAction;
         }
 
         public override int GetHashCode () {
             const int prime = 31;
             int hashcode = 1;
             hashcode = hashcode * prime + Url?.GetHashCode() ?? 0;
-            hashcode = hashcode * prime + DownloadedFileAction?.GetHashCode() ?? 0;
+            hashcode = hashcode * prime + PostdownloadAction?.GetHashCode() ?? 0;
             return hashcode;
         }
 
@@ -139,152 +138,53 @@ namespace FileDownloader {
         }
     }
 
-    interface IFileActionDto {
-        FileActionType Type { get; }
-        bool KeepFile { get; }
-        string Destination { get; }
-        string Arguments { get; }
-    }
+    sealed class FileAction {
+        public const string DownloadedFilePathPlaceholder = "{download}";
 
-    sealed class DownloadedFileAction : IFileActionDto {
-        private static readonly IDictionary<FileActionType, IFileAction> ActionRegistry = new Dictionary<FileActionType, IFileAction> {
-            [FileActionType.Extract] = new ExtractFileAction(),
-            [FileActionType.Execute] = new ExecuteFileAction(),
-        };
+        [JsonProperty("command")]
+        public string RawCommand { get; set; } = DownloadedFilePathPlaceholder;
 
-        [JsonRequired]
-        public FileActionType Type { get; set; }
+        [JsonProperty("args")]
+        public string RawArguments { get; set; }
 
         [JsonProperty("keep_file")]
         public bool KeepFile { get; set; } = true;
 
-        public string Destination { get; set; }
-
-        [JsonProperty("args")]
-        public string Arguments { get; set; }
-
-        public void Trigger (string downloadedFilePath) {
-            var action = GetAction(Type);
-            action.Validate(downloadedFilePath, this);
-            action.Execute(downloadedFilePath, this);
-
-            if(!KeepFile) {
-                File.Delete(downloadedFilePath);
+        public void Trigger (string filePath) {
+            // TODO Use smart proccess running (output errors, wait for exit with a timeout)
+            var command = RawCommand.Replace(DownloadedFilePathPlaceholder, filePath);
+            var arguments = RawArguments.Replace(DownloadedFilePathPlaceholder, filePath);
+            var startInfo = new ProcessStartInfo(command, arguments) { WindowStyle = ProcessWindowStyle.Hidden };
+            using(var process = Process.Start(startInfo)) {
+                process.WaitForExit();
             }
-        }
-
-        private static IFileAction GetAction (FileActionType type) {
-            if(!ActionRegistry.ContainsKey(type)) {
-                throw new NotSupportedException($"{type} is not a supported action type. Supported action types: {string.Join(", ", ActionRegistry.Keys)}");
-            }
-            return ActionRegistry[type];
         }
 
         public override bool Equals (object obj) {
-            var another = obj as DownloadedFileAction;
+            var another = obj as FileAction;
             return !object.ReferenceEquals(another, null)
-                && this.Type == another.Type
-                && this.Destination == another.Destination
+                && this.RawCommand == another.RawCommand
+                && this.RawArguments == another.RawArguments
                 && this.KeepFile == another.KeepFile;
         }
 
         public override int GetHashCode () {
             const int prime = 31;
             int hashcode = 1;
-            hashcode = hashcode * prime + Type.GetHashCode();
-            hashcode = hashcode * prime + Destination?.GetHashCode() ?? 0;
+            hashcode = hashcode * prime + RawCommand?.GetHashCode() ?? 0;
+            hashcode = hashcode * prime + RawArguments?.GetHashCode() ?? 0;
             hashcode = hashcode * prime + KeepFile.GetHashCode();
             return hashcode;
         }
 
-        public static bool operator == (DownloadedFileAction x, DownloadedFileAction y) {
+        public static bool operator == (FileAction x, FileAction y) {
             return object.ReferenceEquals(x, y)
                 || !object.ReferenceEquals(x, null) && !object.ReferenceEquals(y, null) && x.Equals(y);
         }
 
-        public static bool operator != (DownloadedFileAction x, DownloadedFileAction y) {
+        public static bool operator != (FileAction x, FileAction y) {
             return !(x == y);
         }
-    }
-
-    interface IFileAction {
-        FileActionType Type { get; }
-        void Execute (string filePath, IFileActionDto dto);
-        void Validate (string filePath, IFileActionDto dto);
-    }
-
-    sealed class ExtractFileAction : IFileAction {
-        public FileActionType Type => FileActionType.Extract;
-
-        public void Execute (string filePath, IFileActionDto dto) {
-            Directory.CreateDirectory(dto.Destination);
-
-            var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-            if(Directory.Exists(tempDir)) {
-                Directory.Delete(tempDir, recursive: true);
-            }
-            ZipFile.ExtractToDirectory(filePath, tempDir);
-            MoveDir(tempDir, dto.Destination);
-            Directory.Delete(tempDir, recursive: true);
-        }
-
-        // TODO Create a FS helper and move it there
-        static void MoveDir (string sourceDirPath, string targetDirPath, string relativePath = "") {
-            var sourceDir = new DirectoryInfo(sourceDirPath);
-            foreach(var entry in sourceDir.EnumerateFileSystemInfos()) {
-                var targetPath = Path.Combine(targetDirPath, relativePath, entry.Name);
-
-                switch(entry) {
-                    case FileInfo file:
-                        if(File.Exists(targetPath)) {
-                            file.Replace(targetPath, null);
-                        } else {
-                            file.MoveTo(targetPath);
-                        }
-                        break;
-                    case DirectoryInfo dir:
-                        MoveDir(Path.Combine(sourceDirPath, dir.Name), Path.Combine(targetDirPath, dir.Name), Path.Combine(relativePath, dir.Name));
-                        break;
-                    default:
-                        throw new NotSupportedException($"{entry.GetType().FullName} is not supported file system entry type");
-                }
-
-            }
-        }
-
-        public void Validate (string filePath, IFileActionDto dto) {
-            string ext = Path.GetExtension(filePath);
-            if(!ext.Equals(".zip", StringComparison.OrdinalIgnoreCase)) {
-                throw new InvalidOperationException($"Can not extract a non ZIP file ({ext})");
-            }
-            if(string.IsNullOrEmpty(dto.Destination)) {
-                throw new InvalidOperationException($"Can not extract a file without destination location");
-            }
-        }
-    }
-
-    sealed class ExecuteFileAction : IFileAction {
-        static readonly string[] SupportedFileExtensions = new[] { ".exe", ".msi" };
-
-        public FileActionType Type => FileActionType.Execute;
-
-        public void Execute (string filePath, IFileActionDto dto) {
-            // TODO Use smart proccess running (output errors, wait for exit with a timeout)
-            var process = Process.Start(filePath, dto.Arguments);
-            process.WaitForExit();
-        }
-
-        public void Validate (string filePath, IFileActionDto dto) {
-            string ext = Path.GetExtension(filePath);
-            if(SupportedFileExtensions.All(_ => !ext.Equals(_, StringComparison.OrdinalIgnoreCase))) {
-                throw new InvalidOperationException($"Can not execute a nonexecutable file");
-            }
-        }
-    }
-
-    enum FileActionType {
-        Extract,
-        Execute
     }
 
     sealed class DownloadFileState {
