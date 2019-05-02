@@ -2,11 +2,11 @@
 
 namespace FileDownloader {
     static class AppSettings {
-        public static string AddressFileName {
-            get { return ConfigurationManager.AppSettings["addressesFileName"]; }
+        public static string DownloadTasksFileName {
+            get { return ConfigurationManager.AppSettings["downloadTasksFileName"]; }
         }
-        public static string TargetFilePath {
-            get { return ConfigurationManager.AppSettings["targetFilePath"]; }
+        public static string TargetDirectoryPath {
+            get { return ConfigurationManager.AppSettings["targetDirectoryPath"]; }
         }
     }
 }
