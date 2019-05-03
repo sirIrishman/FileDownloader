@@ -1,8 +1,8 @@
 # FileDownloader
 
-### Build status
+## Build status
 
-master | TBA
+master | ![status](https://travis-ci.com/sirIrishman/FileDownloader.svg?branch=master)
 ---|---
 ---
 
