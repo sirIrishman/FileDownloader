@@ -15,7 +15,7 @@ A list of URLs to check and download with optional post-download actions to trig
 
 ## `tasks.json` format example
 
-```
+``` json
 [
     {
         "url": "https://website1.com/files/archive.zip",
