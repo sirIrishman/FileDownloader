@@ -158,6 +158,9 @@ namespace FileDownloader {
             using(var process = Process.Start(startInfo)) {
                 process.WaitForExit();
             }
+            if(!KeepFile) {
+                File.Delete(filePath);
+            }
         }
 
         public override bool Equals (object obj) {
