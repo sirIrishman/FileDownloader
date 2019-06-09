@@ -235,7 +235,7 @@ namespace FileDownloader {
 
         public static bool operator == (DownloadFileState x, DownloadFileState y) {
             return ReferenceEquals(x, y)
-                || !ReferenceEquals(x, null) && !ReferenceEquals(y, null) && x.Equals(y);
+                || !(x is null) && !(y is null) && x.Equals(y);
         }
 
         public static bool operator != (DownloadFileState x, DownloadFileState y) {
