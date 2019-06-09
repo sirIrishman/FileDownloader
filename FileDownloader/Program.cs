@@ -30,8 +30,8 @@ namespace FileDownloader {
                                 task.DownloadState = RetrieveCurrentState(task.DownloadState);
                                 return task;
                             }, state)
-                            .ContinueWith<DownloadFileTask>(_ => DownloadIfAvailable(_.Result), TaskContinuationOptions.OnlyOnRanToCompletion)
-                            .ContinueWith<DownloadFileTask>(_ => ExecuteFileActionIfAvailable(_.Result), TaskContinuationOptions.OnlyOnRanToCompletion))
+                            .ContinueWith(_ => DownloadIfAvailable(_.Result), TaskContinuationOptions.OnlyOnRanToCompletion)
+                            .ContinueWith(_ => ExecuteFileActionIfAvailable(_.Result), TaskContinuationOptions.OnlyOnRanToCompletion))
                         .ToArray();
                     Task.WaitAll(activeDownloadTasks);
 
@@ -55,34 +55,38 @@ namespace FileDownloader {
         }
 
         static DownloadFileTask DownloadIfAvailable (DownloadFileTask task) {
-            if(task.DownloadState.IsNewVersionAvailable) {
-                _logger.Info($"[{Path.GetFileName(task.DownloadState.Url.LocalPath)}] Update found. Downloading...");
-                var downloadRequest = WebRequest.CreateDefault(task.DownloadState.Url);
-                downloadRequest.Method = WebRequestMethods.Http.Get;
-                using(WebResponse downloadResponse = downloadRequest.GetResponse()) {
-                    task.DownloadState.DownloadPath = GetTargetFilePath(downloadRequest.RequestUri);
-                    if(File.Exists(task.DownloadState.DownloadPath)) {
-                        File.Delete(task.DownloadState.DownloadPath);
-                    }
-                    using(WebResponse downloadingResponse = downloadRequest.GetResponse())
-                    using(Stream downloadStream = downloadingResponse.GetResponseStream())
-                    using(var fileStream = new FileStream(task.DownloadState.DownloadPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, bufferSize: /*1 Mb*/1024 * 1024)) {
-                        int totalReadBytes = 0;
-                        while(true) {
-                            var readBuffer = new byte[4096];
-                            int readBytes = downloadStream.Read(readBuffer, 0, readBuffer.Length);
-                            if(readBytes == 0) {
-                                break;
-                            }
-                            fileStream.Write(readBuffer, 0, readBytes);
-                            totalReadBytes += readBytes;
+            try {
+                if(task.DownloadState.IsNewVersionAvailable) {
+                    _logger.Info($"[{Path.GetFileName(task.DownloadState.Url.LocalPath)}] Update found. Downloading...");
+                    var downloadRequest = WebRequest.CreateDefault(task.DownloadState.Url);
+                    downloadRequest.Method = WebRequestMethods.Http.Get;
+                    using(WebResponse downloadResponse = downloadRequest.GetResponse()) {
+                        task.DownloadState.DownloadPath = GetTargetFilePath(downloadRequest.RequestUri);
+                        if(File.Exists(task.DownloadState.DownloadPath)) {
+                            File.Delete(task.DownloadState.DownloadPath);
                         }
-                        fileStream.Flush();
+                        using(WebResponse downloadingResponse = downloadRequest.GetResponse())
+                        using(Stream downloadStream = downloadingResponse.GetResponseStream())
+                        using(var fileStream = new FileStream(task.DownloadState.DownloadPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, bufferSize: /*1 Mb*/1024 * 1024)) {
+                            int totalReadBytes = 0;
+                            while(true) {
+                                var readBuffer = new byte[4096];
+                                int readBytes = downloadStream.Read(readBuffer, 0, readBuffer.Length);
+                                if(readBytes == 0) {
+                                    break;
+                                }
+                                fileStream.Write(readBuffer, 0, readBytes);
+                                totalReadBytes += readBytes;
+                            }
+                            fileStream.Flush();
+                        }
                     }
+                    _logger.Info($"[{Path.GetFileName(task.DownloadState.Url.LocalPath)}] File downloaded.");
+                } else {
+                    _logger.Info($"[{Path.GetFileName(task.DownloadState.Url.LocalPath)}] No updates.");
                 }
-                _logger.Info($"[{Path.GetFileName(task.DownloadState.Url.LocalPath)}] File downloaded.");
-            } else {
-                _logger.Info($"[{Path.GetFileName(task.DownloadState.Url.LocalPath)}] No updates.");
+            } catch(Exception ex) {
+                _logger.Error(ex, $"[{Path.GetFileName(task.DownloadState.Url.LocalPath)}] Downloading failed with error: {ex.Message}.");
             }
             return task;
         }
@@ -147,7 +151,7 @@ namespace FileDownloader {
             var arguments = RawArguments.Replace(DownloadedFilePathPlaceholder, filePath);
             var startInfo = new ProcessStartInfo(command, arguments) { WindowStyle = ProcessWindowStyle.Hidden };
             using(var process = Process.Start(startInfo)) {
-                process.WaitForExit();
+                process.WaitForExit(Convert.ToInt32(TimeSpan.FromMinutes(10).TotalMilliseconds));
             }
             if(!KeepFile) {
                 File.Delete(filePath);
@@ -227,6 +231,15 @@ namespace FileDownloader {
                 Length = webResponse.Headers["Content-Length"],
                 LastModified = webResponse.Headers["Last-Modified"]
             };
+        }
+
+        public static bool operator == (DownloadFileState x, DownloadFileState y) {
+            return ReferenceEquals(x, y)
+                || !ReferenceEquals(x, null) && !ReferenceEquals(y, null) && x.Equals(y);
+        }
+
+        public static bool operator != (DownloadFileState x, DownloadFileState y) {
+            return !(x == y);
         }
     }
 }
