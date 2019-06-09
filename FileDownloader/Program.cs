@@ -9,7 +9,7 @@ using System.Net;
 using System.Threading.Tasks;
 
 namespace FileDownloader {
-    public class Program {
+    public static class Program {
         static readonly string _stateFileName = "state.json";
         static readonly string _currentDir = Directory.GetCurrentDirectory();
         static readonly Logger _logger = LogManager.GetLogger(nameof(Program));
@@ -115,7 +115,7 @@ namespace FileDownloader {
 
         public override bool Equals (object obj) {
             var another = obj as DownloadFileTask;
-            return !object.ReferenceEquals(another, null)
+            return !(another is null)
                 && this.Url == another.Url
                 && this.PostdownloadAction == another.PostdownloadAction;
         }
@@ -126,15 +126,6 @@ namespace FileDownloader {
             hashcode = hashcode * prime + Url?.GetHashCode() ?? 0;
             hashcode = hashcode * prime + PostdownloadAction?.GetHashCode() ?? 0;
             return hashcode;
-        }
-
-        public static bool operator == (DownloadFileTask x, DownloadFileTask y) {
-            return object.ReferenceEquals(x, y)
-                || !object.ReferenceEquals(x, null) && !object.ReferenceEquals(y, null) && x.Equals(y);
-        }
-
-        public static bool operator != (DownloadFileTask x, DownloadFileTask y) {
-            return !(x == y);
         }
     }
 
@@ -165,7 +156,7 @@ namespace FileDownloader {
 
         public override bool Equals (object obj) {
             var another = obj as FileAction;
-            return !object.ReferenceEquals(another, null)
+            return !(another is null)
                 && this.RawCommand == another.RawCommand
                 && this.RawArguments == another.RawArguments
                 && this.KeepFile == another.KeepFile;
@@ -178,15 +169,6 @@ namespace FileDownloader {
             hashcode = hashcode * prime + RawArguments?.GetHashCode() ?? 0;
             hashcode = hashcode * prime + KeepFile.GetHashCode();
             return hashcode;
-        }
-
-        public static bool operator == (FileAction x, FileAction y) {
-            return object.ReferenceEquals(x, y)
-                || !object.ReferenceEquals(x, null) && !object.ReferenceEquals(y, null) && x.Equals(y);
-        }
-
-        public static bool operator != (FileAction x, FileAction y) {
-            return !(x == y);
         }
     }
 
@@ -208,7 +190,7 @@ namespace FileDownloader {
 
         public override bool Equals (object obj) {
             var another = obj as DownloadFileState;
-            return !object.ReferenceEquals(another, null)
+            return !(another is null)
                 && this.Url == another.Url
                 && this.MD5Hash == another.MD5Hash
                 && this.Length == another.Length
@@ -223,15 +205,6 @@ namespace FileDownloader {
             hashcode = hashcode * prime + Length?.GetHashCode() ?? 0;
             hashcode = hashcode * prime + LastModified?.GetHashCode() ?? 0;
             return hashcode;
-        }
-
-        public static bool operator == (DownloadFileState x, DownloadFileState y) {
-            return object.ReferenceEquals(x, y)
-                || !object.ReferenceEquals(x, null) && !object.ReferenceEquals(y, null) && x.Equals(y);
-        }
-
-        public static bool operator != (DownloadFileState x, DownloadFileState y) {
-            return !(x == y);
         }
 
         public static Dictionary<Uri, DownloadFileState> ReadStatesByUrlFromFile (string stateFileName) {
