@@ -31,7 +31,12 @@ namespace FileDownloader {
                         .Select(state => Task.Factory
                             .StartNew(_ => {
                                 var task = (DownloadFileTask)_;
-                                task.DownloadState = RetrieveCurrentState(task.DownloadState);
+
+                                _logger.Info($"[{Path.GetFileName(task.DownloadState.Url.LocalPath)}] Checking updates...");
+                                if(!task.DownloadState.IsEmpty) {
+                                    task.DownloadState = RetrieveCurrentState(task.DownloadState);
+                                }
+
                                 return task;
                             }, state)
                             .ContinueWith(_ => DownloadIfAvailable(_.Result), TaskContinuationOptions.OnlyOnRanToCompletion)
@@ -61,7 +66,6 @@ namespace FileDownloader {
         }
 
         static DownloadFileState RetrieveCurrentState (DownloadFileState prevState) {
-            _logger.Info($"[{Path.GetFileName(prevState.Url.LocalPath)}] Checking updates...");
             var headersRequest = WebRequest.CreateDefault(prevState.Url);
             headersRequest.Method = WebRequestMethods.Http.Head;
             try {
@@ -217,6 +221,15 @@ namespace FileDownloader {
 
         [JsonIgnore]
         public bool IsNewVersionAvailable { get; set; }
+
+        [JsonIgnore]
+        public bool IsEmpty {
+            get {
+                return string.IsNullOrEmpty(MD5Hash)
+                    && string.IsNullOrEmpty(Length)
+                    && string.IsNullOrEmpty(LastModified);
+            }
+        }
 
         public override bool Equals (object obj) {
             var another = obj as DownloadFileState;
