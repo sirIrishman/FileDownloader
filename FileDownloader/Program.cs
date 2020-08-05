@@ -22,7 +22,9 @@ namespace FileDownloader {
                     var prevStatesByUrl = DownloadFileState.ReadStatesByUrlFromFile(_stateFileName);
                     foreach(var task in downloadTasks) {
                         task.Url = ResolveUrl(task);
-                        task.DownloadState = prevStatesByUrl.ContainsKey(task.Url) ? prevStatesByUrl[task.Url] : new DownloadFileState { Url = task.Url };
+                        task.DownloadState = prevStatesByUrl.ContainsKey(task.Url)
+                            ? prevStatesByUrl[task.Url]
+                            : new DownloadFileState { Url = task.Url, IsNewVersionAvailable = true };
                     }
 
                     Task<DownloadFileTask>[] activeDownloadTasks = downloadTasks
@@ -62,10 +64,14 @@ namespace FileDownloader {
             _logger.Info($"[{Path.GetFileName(prevState.Url.LocalPath)}] Checking updates...");
             var headersRequest = WebRequest.CreateDefault(prevState.Url);
             headersRequest.Method = WebRequestMethods.Http.Head;
-            using(WebResponse headersResponse = headersRequest.GetResponse()) {
-                var currentState = DownloadFileState.CreateFromWebResponse(headersRequest.RequestUri, headersResponse);
-                currentState.IsNewVersionAvailable = currentState != prevState;
-                return currentState;
+            try {
+                using(WebResponse headersResponse = headersRequest.GetResponse()) {
+                    var currentState = DownloadFileState.CreateFromWebResponse(headersRequest.RequestUri, headersResponse);
+                    currentState.IsNewVersionAvailable = currentState != prevState;
+                    return currentState;
+                }
+            } catch {
+                return prevState;
             }
         }
 
