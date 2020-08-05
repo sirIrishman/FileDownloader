@@ -1,4 +1,5 @@
-﻿using Newtonsoft.Json;
+﻿using HtmlAgilityPack;
+using Newtonsoft.Json;
 using NLog;
 using System;
 using System.Collections.Generic;
@@ -20,6 +21,7 @@ namespace FileDownloader {
                     var downloadTasks = JsonConvert.DeserializeObject<DownloadFileTask[]>(File.ReadAllText(AppSettings.DownloadTasksFileName));
                     var prevStatesByUrl = DownloadFileState.ReadStatesByUrlFromFile(_stateFileName);
                     foreach(var task in downloadTasks) {
+                        task.Url = ResolveUrl(task);
                         task.DownloadState = prevStatesByUrl.ContainsKey(task.Url) ? prevStatesByUrl[task.Url] : new DownloadFileState { Url = task.Url };
                     }
 
@@ -41,6 +43,19 @@ namespace FileDownloader {
             } catch(Exception ex) {
                 _logger.Error(ex);
             }
+        }
+
+        private static Uri ResolveUrl (DownloadFileTask task) {
+            if(string.IsNullOrEmpty(task.XPath)) {
+                return task.Url;
+            }
+            var webPage = new HtmlWeb();
+            var html = webPage.Load(task.Url);
+            var urlText = html.DocumentNode.SelectSingleNode(task.XPath).GetAttributeValue("href", null);
+            var url = Helper.CreateUrl(urlText);
+            return url.IsAbsoluteUri
+                ? url
+                : new Uri(task.Url, url);
         }
 
         static DownloadFileState RetrieveCurrentState (DownloadFileState prevState) {
@@ -111,6 +126,9 @@ namespace FileDownloader {
         [JsonRequired]
         public Uri Url { get; set; }
 
+        [JsonProperty("link_xpath")]
+        public string XPath { get; set; }
+
         [JsonProperty("action")]
         public FileAction PostdownloadAction { get; set; }
 
@@ -121,6 +139,7 @@ namespace FileDownloader {
             var another = obj as DownloadFileTask;
             return !(another is null)
                 && this.Url == another.Url
+                && this.XPath == another.XPath
                 && this.PostdownloadAction == another.PostdownloadAction;
         }
 
@@ -128,6 +147,7 @@ namespace FileDownloader {
             const int prime = 31;
             int hashcode = 1;
             hashcode = hashcode * prime + Url?.GetHashCode() ?? 0;
+            hashcode = hashcode * prime + XPath?.GetHashCode() ?? 0;
             hashcode = hashcode * prime + PostdownloadAction?.GetHashCode() ?? 0;
             return hashcode;
         }
