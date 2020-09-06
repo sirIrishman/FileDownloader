@@ -21,13 +21,17 @@ namespace FileDownloader {
                     var downloadTasks = JsonConvert.DeserializeObject<DownloadFileTask[]>(File.ReadAllText(AppSettings.DownloadTasksFileName));
                     var prevStatesByUrl = DownloadFileState.ReadStatesByUrlFromFile(_stateFileName);
                     foreach(var task in downloadTasks) {
-                        task.Url = ResolveUrl(task);
-                        task.DownloadState = prevStatesByUrl.ContainsKey(task.Url)
-                            ? prevStatesByUrl[task.Url]
-                            : new DownloadFileState { Url = task.Url, IsNewVersionAvailable = true };
+                        var url = ResolveUrl(task);
+                        if(url != null) {
+                            task.Url = url;
+                            task.DownloadState = prevStatesByUrl.ContainsKey(task.Url)
+                                ? prevStatesByUrl[task.Url]
+                                : new DownloadFileState { Url = task.Url, IsNewVersionAvailable = true };
+                        }
                     }
 
                     Task<DownloadFileTask>[] activeDownloadTasks = downloadTasks
+                        .Where(state => state.DownloadState != null)
                         .Select(state => Task.Factory
                             .StartNew(_ => {
                                 var task = (DownloadFileTask)_;
@@ -58,7 +62,11 @@ namespace FileDownloader {
             }
             var webPage = new HtmlWeb();
             var html = webPage.Load(task.Url);
-            var urlText = html.DocumentNode.SelectSingleNode(task.XPath).GetAttributeValue("href", null);
+            var urlText = html.DocumentNode.SelectSingleNode(task.XPath)?.GetAttributeValue("href", null);
+            if(urlText == null) {
+                _logger.Error($"The '{task.XPath}' XPath fetches nothing for the '{task.Url}' URL.");
+                return null;
+            }
             var url = Helper.CreateUrl(urlText);
             return url.IsAbsoluteUri
                 ? url
