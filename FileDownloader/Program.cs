@@ -29,9 +29,9 @@ namespace FileDownloader {
                                 : new DownloadFileState { Url = task.Url, IsNewVersionAvailable = true };
                         }
                     }
+                    downloadTasks = downloadTasks.Where(state => state.DownloadState != null).ToArray();
 
                     Task<DownloadFileTask>[] activeDownloadTasks = downloadTasks
-                        .Where(state => state.DownloadState != null)
                         .Select(state => Task.Factory
                             .StartNew(_ => {
                                 var task = (DownloadFileTask)_;
